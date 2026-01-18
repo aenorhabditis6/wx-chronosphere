@@ -26,6 +26,7 @@
             background-color: var(--bg-color);
             color: #eeeeee;
             font-family: 'Noto Serif SC', serif;
+            user-select: none;
         }
 
         /* The Container for Three.js */
@@ -134,17 +135,17 @@
             box-shadow: 0 0 20px var(--accent-red);
         }
 
-        /* Orbit Labels - REFINED STYLE */
+        /* Orbit Labels */
         .orbit-label {
             position: absolute;
-            color: rgba(255, 255, 255, 0.5); /* Dimmer */
-            font-size: 1.0rem; /* Smaller */
-            font-weight: 300; /* Thinner */
+            color: rgba(255, 255, 255, 0.5); 
+            font-size: 1.0rem; 
+            font-weight: 300; 
             pointer-events: none;
             text-align: center;
             width: 300px;
             margin-left: -150px;
-            text-shadow: 0 0 5px rgba(0, 243, 255, 0.3); /* Subtle glow */
+            text-shadow: 0 0 5px rgba(0, 243, 255, 0.3); 
             letter-spacing: 3px;
             font-family: 'Noto Serif SC', serif;
             transition: opacity 0.3s;
@@ -167,6 +168,7 @@
         #tooltip h3 { margin: 0 0 5px 0; color: var(--accent-gold); font-size: 1.2rem; border-bottom: 1px solid #555; padding-bottom: 5px; text-shadow: 0 0 5px var(--accent-gold);}
         #tooltip p { margin: 5px 0; font-size: 0.95rem; line-height: 1.6; color: #fff; }
         .subtasks-list { color: #aaa; font-size: 0.85rem; margin-top: 10px; padding-top: 5px; border-top: 1px dashed #666; }
+        .tooltip-hint { font-size: 0.7rem; color: var(--accent-red); margin-top: 8px; font-style: italic; text-align: right; }
 
         /* Modal */
         #modal {
@@ -220,14 +222,14 @@
     <div id="ui-layer">
         <div class="hud-panel top-left">
             <h1>积分创世纪</h1>
-            <div class="subtitle">System: WX-Integral-Engine // Ver 7.0 [Higgs]</div>
+            <div class="subtitle">System: WX-Integral-Engine // Ver 7.2 [Abyss]</div>
             <div class="subtitle" id="current-wx-date">纪元: 收敛纪 5年</div>
             <div style="display: flex; gap: 15px;">
                 <button class="btn" onclick="openModal()">+ 铭刻律法</button>
                 <button class="btn btn-ai" id="scan-btn" onclick="deepSpaceScan()">👁 观测天幕</button>
             </div>
             <div style="margin-top: 15px; font-size: 0.75rem; color: #aaa; font-family: monospace;">
-                [左键] 旋转视角 • [滚轮] 缩放尺度 • [悬停] 冻结时间
+                [左键] 旋转/点击行星 • [滚轮] 缩放 • [悬停] 冻结
             </div>
         </div>
 
@@ -248,6 +250,7 @@
             <p id="tt-date">Date</p>
             <p id="tt-desc">Description</p>
             <div id="tt-subtasks" class="subtasks-list"></div>
+            <div class="tooltip-hint">点击以抹除此因果</div>
         </div>
     </div>
 
@@ -357,11 +360,11 @@
         tower.position.y = -40; 
         scene.add(tower);
 
-        // 3. Starfield with Mass Effect (Higgs Field)
+        // 3. Starfield with Mass Effect (Higgs Field) - INCREASED DENSITY
         const starsGeometry = new THREE.BufferGeometry();
-        const starsCount = 1500;
+        const starsCount = 2000; // Increased
         const posArray = new Float32Array(starsCount * 3);
-        const initialPosArray = new Float32Array(starsCount * 3); // Store initial to bounce back
+        const initialPosArray = new Float32Array(starsCount * 3); 
 
         for(let i = 0; i < starsCount * 3; i++) { 
             const val = (Math.random() - 0.5) * 500;
@@ -374,6 +377,26 @@
         const starsMaterial = new THREE.PointsMaterial({ size: 0.9, color: 0xffffff, transparent: true, opacity: 0.9 });
         const starField = new THREE.Points(starsGeometry, starsMaterial);
         scene.add(starField);
+
+        // 3.5. NEW: Deep Void Background Stars (Static/Twinkling)
+        const bgStarsCount = 1500;
+        const bgGeo = new THREE.BufferGeometry();
+        const bgPos = new Float32Array(bgStarsCount * 3);
+        
+        for(let i = 0; i < bgStarsCount * 3; i+=3) {
+            bgPos[i] = (Math.random() - 0.5) * 1200; // Far spread
+            bgPos[i+1] = (Math.random() - 0.5) * 1200;
+            bgPos[i+2] = (Math.random() - 0.5) * 1200;
+        }
+        bgGeo.setAttribute('position', new THREE.BufferAttribute(bgPos, 3));
+        const bgMat = new THREE.PointsMaterial({
+            color: 0x8888aa, // Subtle blue-grey
+            size: 0.6,
+            transparent: true,
+            opacity: 0.4
+        });
+        const bgStarField = new THREE.Points(bgGeo, bgMat);
+        scene.add(bgStarField);
 
         // 4. Brownian Motion Particles
         const brownianGeo = new THREE.BufferGeometry();
@@ -514,8 +537,14 @@
                 groupEffects.add(trail);
 
                 planet.userData = { 
-                    ...evt, radius: r, angle: angle, speed: speed, moons: [], 
-                    trail: trail, trailPositions: trailPos 
+                    ...evt, 
+                    radius: r, 
+                    angle: angle, 
+                    speed: speed, 
+                    moons: [], 
+                    trail: trail, 
+                    trailPositions: trailPos,
+                    originalRef: evt // Store ref for deletion
                 };
 
                 const lineGeo = new THREE.BufferGeometry().setFromPoints([
@@ -558,19 +587,57 @@
         const mouseVec = new THREE.Vector2();
         let mouseX=0, mouseY=0;
 
-        document.addEventListener('mousedown', () => isDragging = true);
+        document.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            prevMouse = { x: e.offsetX, y: e.offsetY }; // Record start pos
+        });
+        
         document.addEventListener('mouseup', () => isDragging = false);
+        
+        // CLICK TO DELETE LOGIC
+        renderer.domElement.addEventListener('click', (e) => {
+            // Only trigger if mouse didn't move much (not a drag)
+            const dist = Math.hypot(e.offsetX - prevMouse.x, e.offsetY - prevMouse.y);
+            if(dist > 5) return; 
+
+            raycaster.setFromCamera(mouseVec, camera);
+            const intersects = raycaster.intersectObjects(planetMeshes);
+            
+            if(intersects.length > 0) {
+                const hit = intersects[0].object;
+                const data = hit.userData;
+                
+                // Confirm Delete
+                const confirmMsg = `【天道审判】\n\n您确定要抹除这条因果吗？\n\n>> ${data.title}`;
+                if(confirm(confirmMsg)) {
+                    // Remove from array
+                    const index = wxEvents.indexOf(data.originalRef);
+                    if(index > -1) {
+                        // Remove visual trail first
+                        groupEffects.remove(data.trail);
+                        wxEvents.splice(index, 1);
+                        refreshPlanets();
+                    }
+                }
+            }
+        });
+
         document.addEventListener('mousemove', (e) => {
             mouseX = e.clientX; mouseY = e.clientY;
             if(isDragging) {
                 theta -= (e.offsetX - prevMouse.x) * 0.005;
                 phi -= (e.offsetY - prevMouse.y) * 0.2;
                 phi = Math.max(10, Math.min(100, phi));
+                
+                // Update prevMouse for drag calculation
+                prevMouse = { x: e.offsetX, y: e.offsetY };
             }
-            prevMouse = { x: e.offsetX, y: e.offsetY };
+            
+            // Just update vector for raycaster
             mouseVec.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouseVec.y = -(e.clientY / window.innerHeight) * 2 + 1;
         });
+        
         document.addEventListener('wheel', (e) => {
             zoomRadius += e.deltaY * 0.05;
             zoomRadius = Math.max(20, Math.min(150, zoomRadius));
@@ -635,6 +702,11 @@
                 posAttr.setXYZ(i, x, y, z);
             }
             posAttr.needsUpdate = true;
+
+            // Deep Background Stars (Static drift)
+            bgStarField.rotation.y += 0.00005;
+            bgStarField.rotation.x -= 0.00002;
+            bgMat.opacity = 0.4 + Math.sin(time) * 0.1; // Pulse
 
             // --- HIGGS FIELD INTERACTION (STAR FIELD) ---
             raycaster.setFromCamera(mouseVec, camera);
@@ -766,10 +838,20 @@
         animate();
 
         /** AI & DATA LOGIC */
-        const apiKey = ""; 
+        let apiKey = localStorage.getItem("wx_gemini_key") || ""; 
 
         async function callGemini(prompt) {
-            if (!apiKey) { alert("API Key missing in Preview."); return null; }
+            if (!apiKey) {
+                const inputKey = prompt("⚠️ 观测天幕需要密钥\n\n请输入 Google Gemini API Key 以连接神谕：\n(密钥仅保存在您的浏览器本地，不会上传)");
+                if (inputKey) {
+                    apiKey = inputKey.trim();
+                    localStorage.setItem("wx_gemini_key", apiKey);
+                } else {
+                    alert("未提供密钥，无法解析神谕。");
+                    return null;
+                }
+            }
+
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
             try {
                 const response = await fetch(url, {
@@ -777,9 +859,19 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                 });
+                
+                if (!response.ok) throw new Error("API 请求失败");
+
                 const data = await response.json();
                 return data.candidates?.[0]?.content?.parts?.[0]?.text;
-            } catch (e) { console.error(e); return null; }
+            } catch (e) { 
+                console.error(e); 
+                if(confirm("连接天幕失败 (可能是 Key 无效)。\n是否清除本地 Key 并重试？")) {
+                    localStorage.removeItem("wx_gemini_key");
+                    apiKey = "";
+                }
+                return null; 
+            }
         }
 
         async function deepSpaceScan() {
