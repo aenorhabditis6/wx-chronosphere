@@ -125,15 +125,11 @@
             box-shadow: 0 0 20px var(--accent-gold);
         }
 
-        .btn-ai {
-            border-color: var(--accent-red);
-            color: var(--accent-red);
-        }
-        .btn-ai:hover {
-            background: var(--accent-red);
-            color: #000;
-            box-shadow: 0 0 20px var(--accent-red);
-        }
+        .btn-ai { border-color: var(--accent-red); color: var(--accent-red); }
+        .btn-ai:hover { background: var(--accent-red); color: #000; box-shadow: 0 0 20px var(--accent-red); }
+
+        .btn-export { border-color: var(--accent-cyan); color: var(--accent-cyan); font-size: 0.75rem; padding: 5px 10px; margin-top: 15px;}
+        .btn-export:hover { background: var(--accent-cyan); color: #000; box-shadow: 0 0 10px var(--accent-cyan); }
 
         /* Orbit Labels */
         .orbit-label {
@@ -171,7 +167,7 @@
         .tooltip-hint { font-size: 0.7rem; color: var(--accent-red); margin-top: 8px; font-style: italic; text-align: right; }
 
         /* Modal */
-        #modal {
+        #modal, #export-modal {
             position: fixed;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
@@ -186,8 +182,8 @@
             clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
         }
 
-        #modal h3 { color: var(--accent-gold); margin-top: 0; text-align: center; letter-spacing: 3px; border-bottom: 1px solid #333; padding-bottom: 15px;}
-        #modal input, #modal textarea {
+        #modal h3, #export-modal h3 { color: var(--accent-gold); margin-top: 0; text-align: center; letter-spacing: 3px; border-bottom: 1px solid #333; padding-bottom: 15px;}
+        #modal input, #modal textarea, #export-code {
             width: 100%;
             background: rgba(255,255,255,0.1); 
             border: 1px solid #666;
@@ -222,11 +218,15 @@
     <div id="ui-layer">
         <div class="hud-panel top-left">
             <h1>积分创世纪</h1>
-            <div class="subtitle">System: WX-Integral-Engine // Ver 7.2 [Abyss]</div>
+            <div class="subtitle">System: WX-Integral-Engine // Ver 8.0 [Persistence]</div>
             <div class="subtitle" id="current-wx-date">纪元: 收敛纪 5年</div>
-            <div style="display: flex; gap: 15px;">
+            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
                 <button class="btn" onclick="openModal()">+ 铭刻律法</button>
                 <button class="btn btn-ai" id="scan-btn" onclick="deepSpaceScan()">👁 观测天幕</button>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-export" onclick="exportData()">📤 导出世界线</button>
+                <button class="btn btn-export" onclick="resetData()" style="color:#ff4444; border-color:#ff4444;">🔄 重置</button>
             </div>
             <div style="margin-top: 15px; font-size: 0.75rem; color: #aaa; font-family: monospace;">
                 [左键] 旋转/点击行星 • [滚轮] 缩放 • [悬停] 冻结
@@ -239,7 +239,7 @@
             <div style="color: #aaa; font-size: 0.8rem;">收敛中...</div>
         </div>
 
-        <!-- Floating Labels based on Worldview -->
+        <!-- Floating Labels -->
         <div id="label-proximal" class="orbit-label">第一权柄·线<br><span style="font-size:0.7rem; color: var(--accent-cyan); opacity: 0.7;">因果 / 天文</span></div>
         <div id="label-distal" class="orbit-label">第二权柄·面<br><span style="font-size:0.7rem; color: var(--accent-cyan); opacity: 0.7;">维度 / 空间</span></div>
         <div id="label-outer" class="orbit-label">第三权柄·体<br><span style="font-size:0.7rem; color: var(--accent-cyan); opacity: 0.7;">生命 / 物质</span></div>
@@ -281,15 +281,60 @@
         </div>
     </div>
 
+    <!-- Export Modal -->
+    <div id="export-modal">
+        <h3>世界线代码</h3>
+        <p style="font-size:0.8rem; color:#aaa;">复制下方代码，覆盖 GitHub 中 index.html 的 wxEvents 数组，即可将当前变动固化为永恒真理。</p>
+        <textarea id="export-code" rows="10" readonly></textarea>
+        <div class="modal-btns">
+            <button class="btn" onclick="document.getElementById('export-modal').style.display='none'">关闭</button>
+        </div>
+    </div>
+
     <script>
-        /** * DATA CORE: WX UNIVERSE */
-        let wxEvents = [
+        /** * DATA CORE: WX UNIVERSE & STORAGE */
+        
+        // Default Genesis Events
+        const defaultEvents = [
             { title: "小熊的诞辰", daysAway: 2, desc: "熊手党将在大厅举办盛宴。", color: "#ff4444", subtasks: ["预定蜂蜜蛋糕", "藏好礼物"] },
             { title: "建设军演习", daysAway: 14, desc: "阿阳带领的月度军事演练。", color: "#44ff44", subtasks: ["检修装备"] },
             { title: "满月祭", daysAway: 28, desc: "天幕中函数最连续的时刻。", color: "#ffff44" },
             { title: "拓扑学讲座", daysAway: 5, desc: "胖胖博士关于流形的演讲。", color: "#00f3ff", subtasks: ["准备讲义", "擦白板"] },
             { title: "代数几何研讨", daysAway: 60, desc: "MJS 主持的闭门会议。", color: "#bd00ff" }
         ];
+
+        // Load from LocalStorage or use Default
+        let wxEvents = [];
+        const savedData = localStorage.getItem('wx_universe_events');
+        if(savedData) {
+            try {
+                wxEvents = JSON.parse(savedData);
+            } catch(e) {
+                console.error("Save file corrupted, reverting to genesis.", e);
+                wxEvents = [...defaultEvents];
+            }
+        } else {
+            wxEvents = [...defaultEvents];
+        }
+
+        // Helper to Save
+        function persistData() {
+            localStorage.setItem('wx_universe_events', JSON.stringify(wxEvents));
+        }
+
+        function resetData() {
+            if(confirm("【警告】\n您确定要重置世界线吗？\n所有未固化的本地因果将被抹除。")) {
+                localStorage.removeItem('wx_universe_events');
+                location.reload();
+            }
+        }
+
+        function exportData() {
+            const json = JSON.stringify(wxEvents, null, 4);
+            const code = `let wxEvents = ${json};`;
+            document.getElementById('export-code').value = code;
+            document.getElementById('export-modal').style.display = 'block';
+        }
 
         /** THREE.JS SETUP */
         const container = document.getElementById('canvas-container');
@@ -326,7 +371,7 @@
         scene.add(groupPlanets);
         const groupOrbits = new THREE.Group();
         scene.add(groupOrbits);
-        const groupEffects = new THREE.Group(); // New effects group
+        const groupEffects = new THREE.Group(); 
         scene.add(groupEffects);
 
         // 1. Central Singularity (WX's Core)
@@ -360,9 +405,9 @@
         tower.position.y = -40; 
         scene.add(tower);
 
-        // 3. Starfield with Mass Effect (Higgs Field) - INCREASED DENSITY
+        // 3. Starfield with Mass Effect (Higgs Field)
         const starsGeometry = new THREE.BufferGeometry();
-        const starsCount = 2000; // Increased
+        const starsCount = 2000;
         const posArray = new Float32Array(starsCount * 3);
         const initialPosArray = new Float32Array(starsCount * 3); 
 
@@ -378,23 +423,17 @@
         const starField = new THREE.Points(starsGeometry, starsMaterial);
         scene.add(starField);
 
-        // 3.5. NEW: Deep Void Background Stars (Static/Twinkling)
+        // 3.5. Deep Void Background
         const bgStarsCount = 1500;
         const bgGeo = new THREE.BufferGeometry();
         const bgPos = new Float32Array(bgStarsCount * 3);
-        
         for(let i = 0; i < bgStarsCount * 3; i+=3) {
-            bgPos[i] = (Math.random() - 0.5) * 1200; // Far spread
+            bgPos[i] = (Math.random() - 0.5) * 1200;
             bgPos[i+1] = (Math.random() - 0.5) * 1200;
             bgPos[i+2] = (Math.random() - 0.5) * 1200;
         }
         bgGeo.setAttribute('position', new THREE.BufferAttribute(bgPos, 3));
-        const bgMat = new THREE.PointsMaterial({
-            color: 0x8888aa, // Subtle blue-grey
-            size: 0.6,
-            transparent: true,
-            opacity: 0.4
-        });
+        const bgMat = new THREE.PointsMaterial({ color: 0x8888aa, size: 0.6, transparent: true, opacity: 0.4 });
         const bgStarField = new THREE.Points(bgGeo, bgMat);
         scene.add(bgStarField);
 
@@ -419,21 +458,18 @@
         createIntegralRing(40, 0x00f3ff, 0.3); 
         createIntegralRing(60, 0x00f3ff, 0.2); 
 
-        // 6. Accretion Disk (Hunger of WX)
+        // 6. Accretion Disk
         const accretionCount = 300;
         const accGeo = new THREE.BufferGeometry();
         const accPos = new Float32Array(accretionCount * 3);
         const accVel = []; 
-        
         for(let i=0; i<accretionCount; i++) {
             let angle = Math.random() * Math.PI * 2;
             let radius = 5 + Math.random() * 25; 
             let y = (Math.random() - 0.5) * 2; 
-            
             accPos[i*3] = Math.cos(angle) * radius;
             accPos[i*3+1] = y;
             accPos[i*3+2] = Math.sin(angle) * radius;
-            
             accVel.push({ angle: angle, radius: radius, y: y, speed: 0.02 + Math.random() * 0.02 });
         }
         accGeo.setAttribute('position', new THREE.BufferAttribute(accPos, 3));
@@ -447,17 +483,14 @@
         const runeCount = 20;
         const runesGroup = new THREE.Group();
         const symbols = ['∫', '∂', '∑', '∞', '∇', '∅'];
-        
         for(let i=0; i<runeCount; i++) {
             const sym = symbols[Math.floor(Math.random() * symbols.length)];
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
                 map: createTextTexture(sym),
                 color: 0x00f3ff, transparent: true, opacity: 0.3 + Math.random() * 0.4, blending: THREE.AdditiveBlending
             }));
-            
             sprite.position.set((Math.random()-0.5) * 100, (Math.random()-0.5) * 50, (Math.random()-0.5) * 100);
             sprite.scale.set(4, 4, 1);
-            
             sprite.userData = { ySpd: (Math.random() - 0.5) * 0.05, rotSpd: (Math.random() - 0.5) * 0.01 };
             runesGroup.add(sprite);
         }
@@ -544,7 +577,7 @@
                     moons: [], 
                     trail: trail, 
                     trailPositions: trailPos,
-                    originalRef: evt // Store ref for deletion
+                    originalRef: evt
                 };
 
                 const lineGeo = new THREE.BufferGeometry().setFromPoints([
@@ -589,14 +622,13 @@
 
         document.addEventListener('mousedown', (e) => {
             isDragging = true;
-            prevMouse = { x: e.offsetX, y: e.offsetY }; // Record start pos
+            prevMouse = { x: e.offsetX, y: e.offsetY }; 
         });
         
         document.addEventListener('mouseup', () => isDragging = false);
         
         // CLICK TO DELETE LOGIC
         renderer.domElement.addEventListener('click', (e) => {
-            // Only trigger if mouse didn't move much (not a drag)
             const dist = Math.hypot(e.offsetX - prevMouse.x, e.offsetY - prevMouse.y);
             if(dist > 5) return; 
 
@@ -607,15 +639,14 @@
                 const hit = intersects[0].object;
                 const data = hit.userData;
                 
-                // Confirm Delete
                 const confirmMsg = `【天道审判】\n\n您确定要抹除这条因果吗？\n\n>> ${data.title}`;
                 if(confirm(confirmMsg)) {
-                    // Remove from array
+                    // Update main array
                     const index = wxEvents.indexOf(data.originalRef);
                     if(index > -1) {
-                        // Remove visual trail first
                         groupEffects.remove(data.trail);
                         wxEvents.splice(index, 1);
+                        persistData(); // SAVE TO LOCAL STORAGE
                         refreshPlanets();
                     }
                 }
@@ -628,12 +659,8 @@
                 theta -= (e.offsetX - prevMouse.x) * 0.005;
                 phi -= (e.offsetY - prevMouse.y) * 0.2;
                 phi = Math.max(10, Math.min(100, phi));
-                
-                // Update prevMouse for drag calculation
                 prevMouse = { x: e.offsetX, y: e.offsetY };
             }
-            
-            // Just update vector for raycaster
             mouseVec.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouseVec.y = -(e.clientY / window.innerHeight) * 2 + 1;
         });
@@ -656,41 +683,38 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // Camera Physics
+            // Camera
             const rPhi = THREE.MathUtils.degToRad(phi);
             camera.position.x = zoomRadius * Math.sin(rPhi) * Math.sin(theta);
             camera.position.y = zoomRadius * Math.cos(rPhi);
             camera.position.z = zoomRadius * Math.sin(rPhi) * Math.cos(theta);
             camera.lookAt(0, 0, 0);
 
-            // Core Animation
             const time = Date.now() * 0.002;
             coreMesh.rotation.y += 0.01;
             coreMesh.rotation.z += 0.005;
             spriteGlow.scale.setScalar(20 + Math.sin(time)*2);
 
-            // Accretion Disk Animation
+            // Accretion
             const accPos = accretionSystem.geometry.attributes.position.array;
             for(let i=0; i<accretionCount; i++) {
                 const particle = accVel[i];
                 particle.angle += particle.speed * 0.5; 
                 particle.radius -= 0.05; 
-
                 if(particle.radius < 2) particle.radius = 30; 
-
                 accPos[i*3] = Math.cos(particle.angle) * particle.radius;
                 accPos[i*3+1] = particle.y;
                 accPos[i*3+2] = Math.sin(particle.angle) * particle.radius;
             }
             accretionSystem.geometry.attributes.position.needsUpdate = true;
 
-            // Runes Animation
+            // Runes
             runesGroup.children.forEach(sprite => {
                 sprite.position.y += sprite.userData.ySpd;
                 if(sprite.position.y > 50 || sprite.position.y < -50) sprite.userData.ySpd *= -1;
             });
 
-            // Brownian Particles
+            // Brownian
             const posAttr = brownianGeo.attributes.position;
             for(let i=0; i<brownianCount; i++){
                 let x = posAttr.getX(i) + bVel[i].x;
@@ -703,46 +727,36 @@
             }
             posAttr.needsUpdate = true;
 
-            // Deep Background Stars (Static drift)
+            // Background Stars
             bgStarField.rotation.y += 0.00005;
             bgStarField.rotation.x -= 0.00002;
-            bgMat.opacity = 0.4 + Math.sin(time) * 0.1; // Pulse
+            bgMat.opacity = 0.4 + Math.sin(time) * 0.1;
 
-            // --- HIGGS FIELD INTERACTION (STAR FIELD) ---
+            // HIGGS FIELD
             raycaster.setFromCamera(mouseVec, camera);
             const ray = raycaster.ray;
-            
             const starPosAttr = starsGeometry.attributes.position;
             const starInitAttr = starsGeometry.attributes.initialPosition;
 
             for(let i=0; i < starsCount; i++) {
-                // Get initial "resting" position
                 const ix = starInitAttr.getX(i);
                 const iy = starInitAttr.getY(i);
                 const iz = starInitAttr.getZ(i);
                 _tempV.set(ix, iy, iz);
 
-                // Current drawn position (used for lerping)
                 const cx = starPosAttr.getX(i);
                 const cy = starPosAttr.getY(i);
                 const cz = starPosAttr.getZ(i);
 
-                // Calculate distance to the Mouse Ray
                 const distSq = ray.distanceSqToPoint(_tempV);
 
-                // If within "field" of influence
                 if(distSq < 1500) { 
-                    // Calculate closest point on ray to attract towards
                     ray.closestPointToPoint(_tempV, _targetV);
-                    
-                    // Lerp current towards target (Converge)
-                    // We blend 10% towards the target each frame
                     const tx = cx + (_targetV.x - cx) * 0.05;
                     const ty = cy + (_targetV.y - cy) * 0.05;
                     const tz = cz + (_targetV.z - cz) * 0.05;
                     starPosAttr.setXYZ(i, tx, ty, tz);
                 } else {
-                    // Spring back to initial position (Elasticity)
                     const tx = cx + (ix - cx) * 0.02;
                     const ty = cy + (iy - cy) * 0.02;
                     const tz = cz + (iz - cz) * 0.02;
@@ -750,9 +764,8 @@
                 }
             }
             starPosAttr.needsUpdate = true;
-            // ------------------------------------------
 
-            // Raycast Freeze Logic for Planets
+            // Planet Logic
             const intersects = raycaster.intersectObjects(planetMeshes);
             const tooltip = document.getElementById('tooltip');
             const ttSub = document.getElementById('tt-subtasks');
@@ -780,17 +793,14 @@
                 document.body.style.cursor = "default";
             }
 
-            // Orbital Mechanics
             planetMeshes.forEach(p => {
                 if(p === frozenPlanet) return; 
-
                 p.userData.angle += p.userData.speed;
                 const newX = Math.cos(p.userData.angle) * p.userData.radius;
                 const newZ = Math.sin(p.userData.angle) * p.userData.radius;
                 p.position.set(newX, 0, newZ);
                 p.rotation.y += 0.02;
 
-                // Update Trail
                 const positions = p.userData.trailPositions;
                 for(let i = positions.length - 1; i >= 3; i--) {
                     positions[i] = positions[i-3];
@@ -800,8 +810,6 @@
                 positions[2] = newZ;
                 p.userData.trail.geometry.attributes.position.needsUpdate = true;
 
-
-                // Moon Mechanics
                 p.userData.moons.forEach(m => {
                     m.userData.angle += m.userData.speed;
                     m.position.x = Math.cos(m.userData.angle) * m.userData.dist;
@@ -837,7 +845,7 @@
 
         animate();
 
-        /** AI & DATA LOGIC */
+        /** AI Logic */
         let apiKey = localStorage.getItem("wx_gemini_key") || ""; 
 
         async function callGemini(prompt) {
@@ -859,9 +867,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                 });
-                
                 if (!response.ok) throw new Error("API 请求失败");
-
                 const data = await response.json();
                 return data.candidates?.[0]?.content?.parts?.[0]?.text;
             } catch (e) { 
@@ -896,6 +902,7 @@
                     const clean = res.replace(/```json/g, '').replace(/```/g, '').trim();
                     const newEvts = JSON.parse(clean);
                     newEvts.forEach(e => wxEvents.push(e));
+                    persistData(); // SAVE NEW AI EVENTS
                     refreshPlanets(); 
                     alert(`✨ 观测完成！捕获 ${newEvts.length} 个新变量。`);
                 } catch(e) { console.error(e); alert("神谕解析失败 (JSON Error)"); }
@@ -949,6 +956,7 @@
                     color: "#00f3ff",
                     subtasks: stArr
                 });
+                persistData(); // SAVE MANUAL EVENTS
                 refreshPlanets(); 
                 closeModal();
             }
