@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WX 创世纪·积分仪</title>
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Font for coolness -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #05070a; 
+            --accent-gold: #ffd700; /* WX */
+            --accent-red: #ff3333; /* MJS/Blood */
+            --accent-cyan: #00f3ff; /* Science/High Tech */
+            --accent-purple: #bd00ff; /* Mystery */
+            --glass-panel: rgba(10, 15, 30, 0.6);
+            --border-color: rgba(255, 215, 0, 0.3);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            color: #eeeeee;
+            font-family: 'Noto Serif SC', serif;
+        }
+
+        /* The Container for Three.js */
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .hud-panel {
+            position: absolute;
+            padding: 25px;
+            pointer-events: auto;
+            background: linear-gradient(135deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(5px);
+        }
+
+        .top-left { 
+            top: 20px; left: 20px; 
+            border-right: none; border-bottom: none; border-top: 2px solid var(--accent-gold); border-left: 2px solid var(--accent-gold);
+            clip-path: polygon(0 0, 100% 0, 100% 85%, 85% 100%, 0 100%);
+        }
+        
+        .top-right { 
+            top: 20px; right: 20px; 
+            text-align: right; 
+            border: none;
+            background: none;
+        }
+
+        h1 {
+            color: var(--accent-gold);
+            margin: 0;
+            font-size: 2rem;
+            letter-spacing: 5px;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+            font-weight: 700;
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: var(--accent-cyan);
+            margin-bottom: 15px;
+            opacity: 1;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 0 5px var(--accent-cyan);
+        }
+
+        /* Magical Buttons */
+        .btn {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid var(--accent-gold);
+            color: var(--accent-gold);
+            padding: 10px 20px;
+            cursor: pointer;
+            font-family: 'Noto Serif SC', serif;
+            font-weight: bold;
+            transition: all 0.4s ease;
+            margin-top: 5px;
+            pointer-events: auto;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.4), transparent);
+            transition: 0.5s;
+        }
+
+        .btn:hover::before { left: 100%; }
+        .btn:hover {
+            background: var(--accent-gold);
+            color: #000;
+            box-shadow: 0 0 20px var(--accent-gold);
+        }
+
+        .btn-ai {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+        .btn-ai:hover {
+            background: var(--accent-red);
+            color: #000;
+            box-shadow: 0 0 20px var(--accent-red);
+        }
+
+        /* Orbit Labels - REFINED STYLE */
+        .orbit-label {
+            position: absolute;
+            color: rgba(255, 255, 255, 0.5); /* Dimmer */
+            font-size: 1.0rem; /* Smaller */
+            font-weight: 300; /* Thinner */
+            pointer-events: none;
+            text-align: center;
+            width: 300px;
+            margin-left: -150px;
+            text-shadow: 0 0 5px rgba(0, 243, 255, 0.3); /* Subtle glow */
+            letter-spacing: 3px;
+            font-family: 'Noto Serif SC', serif;
+            transition: opacity 0.3s;
+        }
+
+        /* Tooltip */
+        #tooltip {
+            position: absolute;
+            background: rgba(10, 15, 25, 0.95);
+            border: 1px solid var(--accent-cyan);
+            padding: 20px;
+            display: none;
+            pointer-events: none;
+            max-width: 300px;
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.3);
+            z-index: 1000;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        }
+        
+        #tooltip h3 { margin: 0 0 5px 0; color: var(--accent-gold); font-size: 1.2rem; border-bottom: 1px solid #555; padding-bottom: 5px; text-shadow: 0 0 5px var(--accent-gold);}
+        #tooltip p { margin: 5px 0; font-size: 0.95rem; line-height: 1.6; color: #fff; }
+        .subtasks-list { color: #aaa; font-size: 0.85rem; margin-top: 10px; padding-top: 5px; border-top: 1px dashed #666; }
+
+        /* Modal */
+        #modal {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 18, 24, 0.98);
+            border: 1px solid var(--accent-gold);
+            padding: 40px;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 0 100px rgba(0,0,0,0.9);
+            pointer-events: auto;
+            width: 400px;
+            clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+        }
+
+        #modal h3 { color: var(--accent-gold); margin-top: 0; text-align: center; letter-spacing: 3px; border-bottom: 1px solid #333; padding-bottom: 15px;}
+        #modal input, #modal textarea {
+            width: 100%;
+            background: rgba(255,255,255,0.1); 
+            border: 1px solid #666;
+            color: white;
+            padding: 12px;
+            margin-top: 8px;
+            font-family: inherit;
+            box-sizing: border-box;
+            transition: 0.3s;
+        }
+        #modal input:focus, #modal textarea:focus { border-color: var(--accent-gold); outline: none; background: rgba(255,255,255,0.15); }
+        
+        .ai-section {
+            border: 1px dashed var(--accent-red);
+            padding: 15px;
+            margin-bottom: 20px;
+            background: rgba(255, 50, 50, 0.1);
+        }
+
+        .modal-btns { display: flex; justify-content: space-between; margin-top: 30px; }
+
+        .loading { opacity: 0.7; cursor: wait; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Container -->
+    <div id="canvas-container"></div>
+
+    <!-- HTML UI Overlay -->
+    <div id="ui-layer">
+        <div class="hud-panel top-left">
+            <h1>积分创世纪</h1>
+            <div class="subtitle">System: WX-Integral-Engine // Ver 7.0 [Higgs]</div>
+            <div class="subtitle" id="current-wx-date">纪元: 收敛纪 5年</div>
+            <div style="display: flex; gap: 15px;">
+                <button class="btn" onclick="openModal()">+ 铭刻律法</button>
+                <button class="btn btn-ai" id="scan-btn" onclick="deepSpaceScan()">👁 观测天幕</button>
+            </div>
+            <div style="margin-top: 15px; font-size: 0.75rem; color: #aaa; font-family: monospace;">
+                [左键] 旋转视角 • [滚轮] 缩放尺度 • [悬停] 冻结时间
+            </div>
+        </div>
+
+        <div class="hud-panel top-right">
+            <div style="color: var(--accent-gold); letter-spacing: 2px; font-weight: bold;">当前观测域</div>
+            <div style="font-size: 3rem; color: white; text-shadow: 0 0 25px var(--accent-cyan); font-family: monospace;" id="clock-display">00:00</div>
+            <div style="color: #aaa; font-size: 0.8rem;">收敛中...</div>
+        </div>
+
+        <!-- Floating Labels based on Worldview -->
+        <div id="label-proximal" class="orbit-label">第一权柄·线<br><span style="font-size:0.7rem; color: var(--accent-cyan); opacity: 0.7;">因果 / 天文</span></div>
+        <div id="label-distal" class="orbit-label">第二权柄·面<br><span style="font-size:0.7rem; color: var(--accent-cyan); opacity: 0.7;">维度 / 空间</span></div>
+        <div id="label-outer" class="orbit-label">第三权柄·体<br><span style="font-size:0.7rem; color: var(--accent-cyan); opacity: 0.7;">生命 / 物质</span></div>
+
+        <!-- Tooltip -->
+        <div id="tooltip">
+            <h3 id="tt-title">Event Name</h3>
+            <p id="tt-date">Date</p>
+            <p id="tt-desc">Description</p>
+            <div id="tt-subtasks" class="subtasks-list"></div>
+        </div>
+    </div>
+
+    <!-- Modal Form -->
+    <div id="modal">
+        <h3>铭刻新律法</h3>
+        <div class="ai-section">
+            <label style="color: var(--accent-red); margin-top:0; font-size: 0.9rem; font-weight: bold;">◆ 神谕解析 (AI)</label>
+            <textarea id="ai-input" rows="2" placeholder="例如：下周五去偏微阁和路小姐喝茶..."></textarea>
+            <button class="btn btn-ai" id="magic-btn" onclick="magicFill()" style="width: 100%; margin-top: 10px; font-size: 0.9rem;">✨ 解析神谕</button>
+        </div>
+        
+        <label style="font-size: 0.9rem; color: #aaa;">律法名称</label> 
+        <input type="text" id="input-title">
+        
+        <label style="font-size: 0.9rem; color: #aaa;">距离 (天数)</label> 
+        <input type="number" id="input-days" value="1">
+        
+        <label style="font-size: 0.9rem; color: #aaa;">律法描述</label> 
+        <textarea id="input-desc" rows="2"></textarea>
+        
+        <label style="font-size: 0.9rem; color: #aaa;">次级分形 (子任务，逗号分隔)</label> 
+        <input type="text" id="input-subtasks" placeholder="例如：准备祭品, 绘制法阵">
+        
+        <div class="modal-btns">
+            <button class="btn" onclick="saveEvent()">确认铭刻</button>
+            <button class="btn" onclick="closeModal()" style="border-color: #888; color: #888;">放弃</button>
+        </div>
+    </div>
+
+    <script>
+        /** * DATA CORE: WX UNIVERSE */
+        let wxEvents = [
+            { title: "小熊的诞辰", daysAway: 2, desc: "熊手党将在大厅举办盛宴。", color: "#ff4444", subtasks: ["预定蜂蜜蛋糕", "藏好礼物"] },
+            { title: "建设军演习", daysAway: 14, desc: "阿阳带领的月度军事演练。", color: "#44ff44", subtasks: ["检修装备"] },
+            { title: "满月祭", daysAway: 28, desc: "天幕中函数最连续的时刻。", color: "#ffff44" },
+            { title: "拓扑学讲座", daysAway: 5, desc: "胖胖博士关于流形的演讲。", color: "#00f3ff", subtasks: ["准备讲义", "擦白板"] },
+            { title: "代数几何研讨", daysAway: 60, desc: "MJS 主持的闭门会议。", color: "#bd00ff" }
+        ];
+
+        /** THREE.JS SETUP */
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x05070a, 0.01);
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 50, 80);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 3);
+        scene.add(ambientLight);
+        
+        const sunLight = new THREE.PointLight(0xffd700, 3, 300); 
+        sunLight.position.set(0, 0, 0);
+        scene.add(sunLight);
+        
+        const rimLight = new THREE.DirectionalLight(0x00f3ff, 1);
+        rimLight.position.set(50, 20, 50);
+        scene.add(rimLight);
+
+        const fillLight = new THREE.DirectionalLight(0xff3333, 0.5);
+        fillLight.position.set(-50, 0, -50);
+        scene.add(fillLight);
+
+        /** OBJECTS */
+        const groupPlanets = new THREE.Group();
+        scene.add(groupPlanets);
+        const groupOrbits = new THREE.Group();
+        scene.add(groupOrbits);
+        const groupEffects = new THREE.Group(); // New effects group
+        scene.add(groupEffects);
+
+        // 1. Central Singularity (WX's Core)
+        const geoCore = new THREE.IcosahedronGeometry(3, 1);
+        const matCore = new THREE.MeshStandardMaterial({ 
+            color: 0xffd700, emissive: 0xffaa00, emissiveIntensity: 1, wireframe: true
+        });
+        const coreMesh = new THREE.Mesh(geoCore, matCore);
+        scene.add(coreMesh);
+
+        const geoInner = new THREE.SphereGeometry(2, 32, 32);
+        const matInner = new THREE.MeshBasicMaterial({ color: 0xffffaa });
+        const coreInner = new THREE.Mesh(geoInner, matInner);
+        scene.add(coreInner);
+
+        const spriteMaterialGlow = new THREE.SpriteMaterial({ 
+            map: createGlowTexture(), 
+            color: 0xffaa00, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending 
+        });
+        const spriteGlow = new THREE.Sprite(spriteMaterialGlow);
+        spriteGlow.scale.set(30, 30, 1);
+        scene.add(spriteGlow);
+
+        // 2. The Inverted Tower
+        const towerGeo = new THREE.ConeGeometry(20, 100, 4, 1, true); 
+        const towerMat = new THREE.MeshBasicMaterial({ 
+            color: 0x550000, wireframe: true, transparent: true, opacity: 0.2
+        });
+        const tower = new THREE.Mesh(towerGeo, towerMat);
+        tower.rotation.x = Math.PI; 
+        tower.position.y = -40; 
+        scene.add(tower);
+
+        // 3. Starfield with Mass Effect (Higgs Field)
+        const starsGeometry = new THREE.BufferGeometry();
+        const starsCount = 1500;
+        const posArray = new Float32Array(starsCount * 3);
+        const initialPosArray = new Float32Array(starsCount * 3); // Store initial to bounce back
+
+        for(let i = 0; i < starsCount * 3; i++) { 
+            const val = (Math.random() - 0.5) * 500;
+            posArray[i] = val; 
+            initialPosArray[i] = val; 
+        }
+        starsGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        starsGeometry.setAttribute('initialPosition', new THREE.BufferAttribute(initialPosArray, 3));
+
+        const starsMaterial = new THREE.PointsMaterial({ size: 0.9, color: 0xffffff, transparent: true, opacity: 0.9 });
+        const starField = new THREE.Points(starsGeometry, starsMaterial);
+        scene.add(starField);
+
+        // 4. Brownian Motion Particles
+        const brownianGeo = new THREE.BufferGeometry();
+        const brownianCount = 100;
+        const bPos = new Float32Array(brownianCount * 3);
+        const bVel = []; 
+        for(let i=0; i<brownianCount; i++){
+            bPos[i*3] = (Math.random() - 0.5) * 20;
+            bPos[i*3+1] = (Math.random() - 0.5) * 20;
+            bPos[i*3+2] = (Math.random() - 0.5) * 20;
+            bVel.push(new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1));
+        }
+        brownianGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3));
+        const brownianMat = new THREE.PointsMaterial({ color: 0x00ff00, size: 0.6, transparent: true, opacity: 0.8 });
+        const brownianParticles = new THREE.Points(brownianGeo, brownianMat);
+        scene.add(brownianParticles);
+
+        // 5. Orbit Rings
+        createIntegralRing(20, 0x00f3ff, 0.4); 
+        createIntegralRing(40, 0x00f3ff, 0.3); 
+        createIntegralRing(60, 0x00f3ff, 0.2); 
+
+        // 6. Accretion Disk (Hunger of WX)
+        const accretionCount = 300;
+        const accGeo = new THREE.BufferGeometry();
+        const accPos = new Float32Array(accretionCount * 3);
+        const accVel = []; 
+        
+        for(let i=0; i<accretionCount; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            let radius = 5 + Math.random() * 25; 
+            let y = (Math.random() - 0.5) * 2; 
+            
+            accPos[i*3] = Math.cos(angle) * radius;
+            accPos[i*3+1] = y;
+            accPos[i*3+2] = Math.sin(angle) * radius;
+            
+            accVel.push({ angle: angle, radius: radius, y: y, speed: 0.02 + Math.random() * 0.02 });
+        }
+        accGeo.setAttribute('position', new THREE.BufferAttribute(accPos, 3));
+        const accMat = new THREE.PointsMaterial({ 
+            color: 0xffaa00, size: 0.4, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending 
+        });
+        const accretionSystem = new THREE.Points(accGeo, accMat);
+        groupEffects.add(accretionSystem);
+
+        // 7. Floating Math Runes
+        const runeCount = 20;
+        const runesGroup = new THREE.Group();
+        const symbols = ['∫', '∂', '∑', '∞', '∇', '∅'];
+        
+        for(let i=0; i<runeCount; i++) {
+            const sym = symbols[Math.floor(Math.random() * symbols.length)];
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: createTextTexture(sym),
+                color: 0x00f3ff, transparent: true, opacity: 0.3 + Math.random() * 0.4, blending: THREE.AdditiveBlending
+            }));
+            
+            sprite.position.set((Math.random()-0.5) * 100, (Math.random()-0.5) * 50, (Math.random()-0.5) * 100);
+            sprite.scale.set(4, 4, 1);
+            
+            sprite.userData = { ySpd: (Math.random() - 0.5) * 0.05, rotSpd: (Math.random() - 0.5) * 0.01 };
+            runesGroup.add(sprite);
+        }
+        groupEffects.add(runesGroup);
+
+
+        function createIntegralRing(radius, color, opacity) {
+            const geometry = new THREE.RingGeometry(radius - 0.2, radius + 0.2, 64);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: color, transparent: true, opacity: opacity, side: THREE.DoubleSide, blending: THREE.AdditiveBlending
+            });
+            const ring = new THREE.Mesh(geometry, material);
+            ring.rotation.x = Math.PI / 2;
+            groupOrbits.add(ring);
+        }
+
+        function createGlowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+            grad.addColorStop(0, 'rgba(255,215,0,1)');
+            grad.addColorStop(0.4, 'rgba(255,100,0,0.5)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0,0,32,32);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createTextTexture(text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.font = 'bold 48px "Times New Roman", serif';
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 32, 32);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        /** LOGIC: PLANETS & MOONS */
+        const planetMeshes = [];
+
+        function refreshPlanets() {
+            while(groupPlanets.children.length > 0){ groupPlanets.remove(groupPlanets.children[0]); }
+            planetMeshes.length = 0;
+
+            wxEvents.forEach((evt, index) => {
+                let r = 10 + (evt.daysAway * 0.8);
+                if (r > 70) r = 70;
+                const angle = (index / wxEvents.length) * Math.PI * 2;
+                const speed = 0.5 / Math.pow(r, 1.5); 
+
+                const geometry = new THREE.SphereGeometry(0.8, 16, 16);
+                const material = new THREE.MeshStandardMaterial({ 
+                    color: evt.color || 0xffffff,
+                    roughness: 0.2, metalness: 0.6,
+                    emissive: evt.color, emissiveIntensity: 0.6 
+                });
+                const planet = new THREE.Mesh(geometry, material);
+                planet.position.set(Math.cos(angle)*r, 0, Math.sin(angle)*r);
+                
+                const trailGeo = new THREE.BufferGeometry();
+                const trailLen = 50; 
+                const trailPos = new Float32Array(trailLen * 3);
+                for(let i=0; i<trailLen; i++) {
+                    trailPos[i*3] = planet.position.x;
+                    trailPos[i*3+1] = planet.position.y;
+                    trailPos[i*3+2] = planet.position.z;
+                }
+                trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+                const trailMat = new THREE.LineBasicMaterial({ 
+                    color: evt.color, transparent: true, opacity: 0.4 
+                });
+                const trail = new THREE.Line(trailGeo, trailMat);
+                groupEffects.add(trail);
+
+                planet.userData = { 
+                    ...evt, radius: r, angle: angle, speed: speed, moons: [], 
+                    trail: trail, trailPositions: trailPos 
+                };
+
+                const lineGeo = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -5, 0) 
+                ]);
+                const lineMat = new THREE.LineBasicMaterial({ color: evt.color, transparent: true, opacity: 0.5 });
+                const line = new THREE.Line(lineGeo, lineMat);
+                planet.add(line);
+
+                if (evt.subtasks && evt.subtasks.length > 0) {
+                    const limit = Math.min(evt.subtasks.length, 3);
+                    for(let i=0; i<limit; i++) {
+                        const moonGeo = new THREE.TetrahedronGeometry(0.25); 
+                        const moonMat = new THREE.MeshStandardMaterial({ 
+                            color: evt.color, emissive: evt.color, emissiveIntensity: 0.5
+                        });
+                        const moon = new THREE.Mesh(moonGeo, moonMat);
+                        const dist = 1.5 + (i * 0.7);
+                        const mAngle = Math.random() * Math.PI * 2;
+                        const mSpeed = 0.05 + (i * 0.02);
+                        moon.userData = { dist: dist, angle: mAngle, speed: mSpeed };
+                        moon.position.set(Math.cos(mAngle)*dist, 0, Math.sin(mAngle)*dist);
+                        planet.add(moon);
+                        planet.userData.moons.push(moon);
+                    }
+                }
+                groupPlanets.add(planet);
+                planetMeshes.push(planet);
+            });
+        }
+        refreshPlanets();
+
+        /** INPUT & INTERACTION */
+        let isDragging = false;
+        let prevMouse = { x: 0, y: 0 };
+        let theta = 0, phi = 60;
+        let zoomRadius = 80;
+        
+        const raycaster = new THREE.Raycaster();
+        const mouseVec = new THREE.Vector2();
+        let mouseX=0, mouseY=0;
+
+        document.addEventListener('mousedown', () => isDragging = true);
+        document.addEventListener('mouseup', () => isDragging = false);
+        document.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX; mouseY = e.clientY;
+            if(isDragging) {
+                theta -= (e.offsetX - prevMouse.x) * 0.005;
+                phi -= (e.offsetY - prevMouse.y) * 0.2;
+                phi = Math.max(10, Math.min(100, phi));
+            }
+            prevMouse = { x: e.offsetX, y: e.offsetY };
+            mouseVec.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouseVec.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+        document.addEventListener('wheel', (e) => {
+            zoomRadius += e.deltaY * 0.05;
+            zoomRadius = Math.max(20, Math.min(150, zoomRadius));
+        });
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // HIGGS FIELD CALCULATION
+        const _tempV = new THREE.Vector3();
+        const _targetV = new THREE.Vector3();
+
+        /** ANIMATION LOOP */
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Camera Physics
+            const rPhi = THREE.MathUtils.degToRad(phi);
+            camera.position.x = zoomRadius * Math.sin(rPhi) * Math.sin(theta);
+            camera.position.y = zoomRadius * Math.cos(rPhi);
+            camera.position.z = zoomRadius * Math.sin(rPhi) * Math.cos(theta);
+            camera.lookAt(0, 0, 0);
+
+            // Core Animation
+            const time = Date.now() * 0.002;
+            coreMesh.rotation.y += 0.01;
+            coreMesh.rotation.z += 0.005;
+            spriteGlow.scale.setScalar(20 + Math.sin(time)*2);
+
+            // Accretion Disk Animation
+            const accPos = accretionSystem.geometry.attributes.position.array;
+            for(let i=0; i<accretionCount; i++) {
+                const particle = accVel[i];
+                particle.angle += particle.speed * 0.5; 
+                particle.radius -= 0.05; 
+
+                if(particle.radius < 2) particle.radius = 30; 
+
+                accPos[i*3] = Math.cos(particle.angle) * particle.radius;
+                accPos[i*3+1] = particle.y;
+                accPos[i*3+2] = Math.sin(particle.angle) * particle.radius;
+            }
+            accretionSystem.geometry.attributes.position.needsUpdate = true;
+
+            // Runes Animation
+            runesGroup.children.forEach(sprite => {
+                sprite.position.y += sprite.userData.ySpd;
+                if(sprite.position.y > 50 || sprite.position.y < -50) sprite.userData.ySpd *= -1;
+            });
+
+            // Brownian Particles
+            const posAttr = brownianGeo.attributes.position;
+            for(let i=0; i<brownianCount; i++){
+                let x = posAttr.getX(i) + bVel[i].x;
+                let y = posAttr.getY(i) + bVel[i].y;
+                let z = posAttr.getZ(i) + bVel[i].z;
+                if(Math.abs(x) > 10) bVel[i].x *= -1;
+                if(Math.abs(y) > 10) bVel[i].y *= -1;
+                if(Math.abs(z) > 10) bVel[i].z *= -1;
+                posAttr.setXYZ(i, x, y, z);
+            }
+            posAttr.needsUpdate = true;
+
+            // --- HIGGS FIELD INTERACTION (STAR FIELD) ---
+            raycaster.setFromCamera(mouseVec, camera);
+            const ray = raycaster.ray;
+            
+            const starPosAttr = starsGeometry.attributes.position;
+            const starInitAttr = starsGeometry.attributes.initialPosition;
+
+            for(let i=0; i < starsCount; i++) {
+                // Get initial "resting" position
+                const ix = starInitAttr.getX(i);
+                const iy = starInitAttr.getY(i);
+                const iz = starInitAttr.getZ(i);
+                _tempV.set(ix, iy, iz);
+
+                // Current drawn position (used for lerping)
+                const cx = starPosAttr.getX(i);
+                const cy = starPosAttr.getY(i);
+                const cz = starPosAttr.getZ(i);
+
+                // Calculate distance to the Mouse Ray
+                const distSq = ray.distanceSqToPoint(_tempV);
+
+                // If within "field" of influence
+                if(distSq < 1500) { 
+                    // Calculate closest point on ray to attract towards
+                    ray.closestPointToPoint(_tempV, _targetV);
+                    
+                    // Lerp current towards target (Converge)
+                    // We blend 10% towards the target each frame
+                    const tx = cx + (_targetV.x - cx) * 0.05;
+                    const ty = cy + (_targetV.y - cy) * 0.05;
+                    const tz = cz + (_targetV.z - cz) * 0.05;
+                    starPosAttr.setXYZ(i, tx, ty, tz);
+                } else {
+                    // Spring back to initial position (Elasticity)
+                    const tx = cx + (ix - cx) * 0.02;
+                    const ty = cy + (iy - cy) * 0.02;
+                    const tz = cz + (iz - cz) * 0.02;
+                    starPosAttr.setXYZ(i, tx, ty, tz);
+                }
+            }
+            starPosAttr.needsUpdate = true;
+            // ------------------------------------------
+
+            // Raycast Freeze Logic for Planets
+            const intersects = raycaster.intersectObjects(planetMeshes);
+            const tooltip = document.getElementById('tooltip');
+            const ttSub = document.getElementById('tt-subtasks');
+            let frozenPlanet = null;
+
+            if(intersects.length > 0) {
+                const hit = intersects[0].object;
+                const data = hit.userData;
+                frozenPlanet = hit;
+                tooltip.style.display = 'block';
+                tooltip.style.left = (mouseX + 20) + 'px';
+                tooltip.style.top = (mouseY + 20) + 'px';
+                document.getElementById('tt-title').innerText = data.title;
+                document.getElementById('tt-date').innerText = `预计抵达: ${data.daysAway} 天后`;
+                document.getElementById('tt-desc').innerText = data.desc;
+                if (data.subtasks && data.subtasks.length > 0) {
+                    ttSub.style.display = 'block';
+                    ttSub.innerHTML = '<strong>次级分形:</strong><br>' + data.subtasks.map(s => `• ${s}`).join('<br>');
+                } else { ttSub.style.display = 'none'; }
+                hit.scale.setScalar(1.5);
+                document.body.style.cursor = "pointer";
+            } else {
+                tooltip.style.display = 'none';
+                planetMeshes.forEach(p => p.scale.setScalar(1));
+                document.body.style.cursor = "default";
+            }
+
+            // Orbital Mechanics
+            planetMeshes.forEach(p => {
+                if(p === frozenPlanet) return; 
+
+                p.userData.angle += p.userData.speed;
+                const newX = Math.cos(p.userData.angle) * p.userData.radius;
+                const newZ = Math.sin(p.userData.angle) * p.userData.radius;
+                p.position.set(newX, 0, newZ);
+                p.rotation.y += 0.02;
+
+                // Update Trail
+                const positions = p.userData.trailPositions;
+                for(let i = positions.length - 1; i >= 3; i--) {
+                    positions[i] = positions[i-3];
+                }
+                positions[0] = newX;
+                positions[1] = 0;
+                positions[2] = newZ;
+                p.userData.trail.geometry.attributes.position.needsUpdate = true;
+
+
+                // Moon Mechanics
+                p.userData.moons.forEach(m => {
+                    m.userData.angle += m.userData.speed;
+                    m.position.x = Math.cos(m.userData.angle) * m.userData.dist;
+                    m.position.z = Math.sin(m.userData.angle) * m.userData.dist;
+                    m.rotation.x += 0.05; 
+                });
+            });
+
+            starField.rotation.y -= 0.0001;
+            tower.rotation.y += 0.0005;
+
+            updateLabel(20, 'label-proximal');
+            updateLabel(40, 'label-distal');
+            updateLabel(60, 'label-outer');
+
+            renderer.render(scene, camera);
+        }
+
+        function updateLabel(radius, id) {
+            const vec = new THREE.Vector3(radius, 0, 0);
+            vec.project(camera);
+            const x = (vec.x * .5 + .5) * window.innerWidth;
+            const y = (-(vec.y * .5) + .5) * window.innerHeight;
+            const el = document.getElementById(id);
+            if(vec.z > 1 || Math.abs(vec.x) > 1 || Math.abs(vec.y) > 1) {
+                el.style.opacity = 0;
+            } else {
+                el.style.opacity = 1;
+                el.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+                el.style.left = 0; el.style.top = 0; 
+            }
+        }
+
+        animate();
+
+        /** AI & DATA LOGIC */
+        const apiKey = ""; 
+
+        async function callGemini(prompt) {
+            if (!apiKey) { alert("API Key missing in Preview."); return null; }
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                const data = await response.json();
+                return data.candidates?.[0]?.content?.parts?.[0]?.text;
+            } catch (e) { console.error(e); return null; }
+        }
+
+        async function deepSpaceScan() {
+            const btn = document.getElementById('scan-btn');
+            btn.classList.add('loading'); btn.innerText = "观测收敛中...";
+            const prompt = `
+            基于以下《积分创世纪》世界观，生成 3 个有趣的未来日程/事件。
+            世界观关键词：
+            - WX (积分古神，奇点，创造者)
+            - MJS (代数几何天使，倒悬高塔，反叛者，红色)
+            - 帕拉 (Pneuma, 医学之神，记忆缝合，白色)
+            - 勇者 J (吞食苦难，求解PDE)
+            - 大B (天文学家，第一权柄，观测者)
+            - 艾莉/希码瑞 (CS, 虚构天使, 渲染)
+            请用中文返回一个合法的 JSON 数组，格式如下：
+            [{"title":"事件名", "daysAway":整数(1-60), "desc":"基于世界观的描述", "color":"#hex", "subtasks": ["子任务1", "子任务2"]}]
+            确保内容有些“中二”和神秘感。
+            `;
+            const res = await callGemini(prompt);
+            if (res) {
+                try {
+                    const clean = res.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const newEvts = JSON.parse(clean);
+                    newEvts.forEach(e => wxEvents.push(e));
+                    refreshPlanets(); 
+                    alert(`✨ 观测完成！捕获 ${newEvts.length} 个新变量。`);
+                } catch(e) { console.error(e); alert("神谕解析失败 (JSON Error)"); }
+            }
+            btn.classList.remove('loading'); btn.innerText = "👁 观测天幕";
+        }
+
+        async function magicFill() {
+            const txt = document.getElementById('ai-input').value;
+            const prompt = `
+            将以下用户输入的自然语言转化为日程 JSON。
+            输入: "${txt}"
+            如果输入包含世界观中的人物(如路小姐, MJS, 小熊)，请在描述中加入相关梗。
+            返回格式: {"title":"", "daysAway":int, "desc":"", "subtasks":[""]}
+            `;
+            const btn = document.getElementById('magic-btn');
+            btn.innerText = "解析中...";
+            const res = await callGemini(prompt);
+            if (res) {
+                try {
+                    const clean = res.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const data = JSON.parse(clean);
+                    document.getElementById('input-title').value = data.title;
+                    document.getElementById('input-days').value = data.daysAway || 7;
+                    document.getElementById('input-desc').value = data.desc;
+                    if(data.subtasks) document.getElementById('input-subtasks').value = data.subtasks.join(', ');
+                } catch(e) { console.error(e); }
+            }
+            btn.innerText = "✨ 解析神谕";
+        }
+
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('clock-display').innerText = 
+                now.getHours().toString().padStart(2, '0') + ":" + 
+                now.getMinutes().toString().padStart(2, '0');
+        }, 1000);
+
+        const modal = document.getElementById('modal');
+        function openModal() { modal.style.display = 'block'; }
+        function closeModal() { modal.style.display = 'none'; }
+        function saveEvent() {
+            const t = document.getElementById('input-title').value;
+            if(t) {
+                const stStr = document.getElementById('input-subtasks').value;
+                const stArr = stStr ? stStr.split(',').map(s => s.trim()).filter(s => s) : [];
+                wxEvents.push({
+                    title: t,
+                    daysAway: parseInt(document.getElementById('input-days').value) || 1,
+                    desc: document.getElementById('input-desc').value,
+                    color: "#00f3ff",
+                    subtasks: stArr
+                });
+                refreshPlanets(); 
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>
