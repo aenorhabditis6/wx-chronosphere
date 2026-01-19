@@ -117,7 +117,7 @@
     <div id="ui-layer">
         <div class="hud-panel top-left">
             <h1>积分创世纪</h1>
-            <div class="subtitle">System: Chrono-Sync // Ver 10.0</div>
+            <div class="subtitle">System: Chrono-Sync // Ver 11.0 [Visuals Restored]</div>
             <div class="subtitle" id="current-wx-date"></div>
             
             <div style="display: flex; gap: 10px; margin-bottom: 10px;">
@@ -305,12 +305,12 @@
         scene.add(coreMesh);
         scene.add(new THREE.Mesh(new THREE.SphereGeometry(2,32,32), new THREE.MeshBasicMaterial({color:0xffffaa})));
         
-        // Stars & Particles (Now with Assigned Physics Identity)
+        // --- 1. Interactive Stars (Higgs Field) ---
         const starsGeo = new THREE.BufferGeometry();
         const starsCount = 2000;
         const starsPos = new Float32Array(starsCount * 3); 
         const starsInit = new Float32Array(starsCount * 3);
-        const particleIndices = new Float32Array(starsCount); // To store which particle type it is
+        const particleIndices = new Float32Array(starsCount); 
 
         for(let i=0; i<starsCount; i++) { 
             const idx = i*3;
@@ -321,18 +321,41 @@
             starsInit[idx] = starsPos[idx];
             starsInit[idx+1] = starsPos[idx+1];
             starsInit[idx+2] = starsPos[idx+2];
-            
-            // Randomly assign a particle ID from standardModel
             particleIndices[i] = Math.floor(Math.random() * standardModel.length);
         }
         starsGeo.setAttribute('position', new THREE.BufferAttribute(starsPos, 3));
         starsGeo.setAttribute('initialPosition', new THREE.BufferAttribute(starsInit, 3));
-        // We don't need to pass particleIndices to GPU unless using custom shader, 
-        // we'll use it in JS raycasting.
-
         const starsMaterial = new THREE.PointsMaterial({size:0.9, color:0xffffff, transparent:true, opacity:0.8});
         const starField = new THREE.Points(starsGeo, starsMaterial);
         scene.add(starField);
+
+        // --- 2. Deep Void Stars (Restored) ---
+        const bgGeo = new THREE.BufferGeometry();
+        const bgCount = 1500;
+        const bgPos = new Float32Array(bgCount * 3);
+        for(let i=0; i<bgCount*3; i++) bgPos[i] = (Math.random()-0.5)*1200;
+        bgGeo.setAttribute('position', new THREE.BufferAttribute(bgPos, 3));
+        const bgMat = new THREE.PointsMaterial({size:0.7, color:0x555577, transparent:true, opacity:0.4});
+        const bgStarField = new THREE.Points(bgGeo, bgMat);
+        scene.add(bgStarField);
+
+        // --- 3. Accretion Disk (Restored) ---
+        const accGeo = new THREE.BufferGeometry();
+        const accCount = 500;
+        const accPos = new Float32Array(accCount*3);
+        const accVel = []; // Custom velocity/position data
+        for(let i=0; i<accCount; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            let r = 4 + Math.random() * 20; // Radius
+            accPos[i*3] = Math.cos(angle)*r;
+            accPos[i*3+1] = (Math.random()-0.5)*1; // Flattened Y
+            accPos[i*3+2] = Math.sin(angle)*r;
+            accVel.push({angle:angle, r:r, speed:0.02+Math.random()*0.03});
+        }
+        accGeo.setAttribute('position', new THREE.BufferAttribute(accPos, 3));
+        const accMat = new THREE.PointsMaterial({color:0xffaa00, size:0.3, transparent:true, opacity:0.6, blending:THREE.AdditiveBlending});
+        const accretionSystem = new THREE.Points(accGeo, accMat);
+        scene.add(accretionSystem);
 
         // Orbit Rings
         const createRing = (r, c, o) => {
@@ -469,6 +492,21 @@
             const rPhi = THREE.MathUtils.degToRad(phi);
             camera.position.set(zoom*Math.sin(rPhi)*Math.sin(theta), zoom*Math.cos(rPhi), zoom*Math.sin(rPhi)*Math.cos(theta));
             camera.lookAt(0,0,0);
+
+            // Animate Deep Void Background
+            bgStarField.rotation.y += 0.0001;
+
+            // Animate Accretion Disk
+            const accArr = accretionSystem.geometry.attributes.position.array;
+            for(let i=0; i<accCount; i++) {
+                const v = accVel[i];
+                v.angle += v.speed;
+                v.r -= 0.05; // Spiral in
+                if(v.r < 3) v.r = 24; // Reset to rim
+                accArr[i*3] = Math.cos(v.angle)*v.r;
+                accArr[i*3+2] = Math.sin(v.angle)*v.r;
+            }
+            accretionSystem.geometry.attributes.position.needsUpdate = true;
 
             // Higgs Field & Animation
             raycaster.setFromCamera(mouse, camera);
