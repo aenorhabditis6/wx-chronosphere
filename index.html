@@ -117,7 +117,7 @@
     <div id="ui-layer">
         <div class="hud-panel top-left">
             <h1>积分创世纪</h1>
-            <div class="subtitle">System: Chrono-Sync // Ver 13.1 [Void Respawn]</div>
+            <div class="subtitle">System: Chrono-Sync // Ver 13.2 [Void Respawn]</div>
             <div class="subtitle" id="current-wx-date"></div>
             
             <div style="display: flex; gap: 10px; margin-bottom: 10px;">
@@ -551,7 +551,7 @@
             for(let i=0; i<starsCount; i++) {
                 // --- Camera Proximity Check (Annihilation) ---
                 starPos.set(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
-                if(starPos.distanceToSquared(camera.position) < 200) { // ~14 units distance
+                if(starPos.distanceToSquared(camera.position) < 25) { // ~5 units distance
                     const nX = (Math.random()-0.5)*600; 
                     const nY = (Math.random()-0.5)*600;
                     const nZ = (Math.random()-0.5)*600;
