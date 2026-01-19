@@ -117,7 +117,7 @@
     <div id="ui-layer">
         <div class="hud-panel top-left">
             <h1>积分创世纪</h1>
-            <div class="subtitle">System: Chrono-Sync // Ver 12.0 [Legacy Restored]</div>
+            <div class="subtitle">System: Chrono-Sync // Ver 13.0 [Classic Higgs]</div>
             <div class="subtitle" id="current-wx-date"></div>
             
             <div style="display: flex; gap: 10px; margin-bottom: 10px;">
@@ -305,7 +305,7 @@
         scene.add(coreMesh);
         scene.add(new THREE.Mesh(new THREE.SphereGeometry(2,32,32), new THREE.MeshBasicMaterial({color:0xffffaa})));
         
-        // --- 1. Interactive Stars (Fluid Field) ---
+        // --- 1. Interactive Stars (Higgs Field) ---
         const starsGeo = new THREE.BufferGeometry();
         const starsCount = 2000;
         const starsPos = new Float32Array(starsCount * 3); 
@@ -539,7 +539,7 @@
             }
             bPosAttr.needsUpdate = true;
 
-            // Fluid Field & Animation
+            // Higgs Field (RESTORED ATTRACTION)
             raycaster.setFromCamera(mouse, camera);
             const posAttr = starsGeo.attributes.position;
             const initAttr = starsGeo.attributes.initialPosition;
@@ -549,24 +549,18 @@
             for(let i=0; i<starsCount; i++) {
                 temp.set(initAttr.getX(i), initAttr.getY(i), initAttr.getZ(i));
                 const distSq = ray.distanceSqToPoint(temp);
-                
-                const driftX = Math.sin(Date.now() * 0.0005 + i) * 2;
-                const driftY = Math.cos(Date.now() * 0.0003 + i) * 2;
-                const driftZ = Math.sin(Date.now() * 0.0004 + i) * 2;
 
                 if(distSq < 1500) {
-                    const pushStrength = 1.0 - (distSq / 1500); 
-                    posAttr.setXYZ(i, 
-                        initAttr.getX(i) + driftX + (Math.random()-0.5)*10 * pushStrength,
-                        initAttr.getY(i) + driftY + (Math.random()-0.5)*10 * pushStrength,
-                        initAttr.getZ(i) + driftZ + (Math.random()-0.5)*10 * pushStrength
-                    );
+                    ray.closestPointToPoint(temp, target);
+                    const tx = posAttr.getX(i) + (target.x - posAttr.getX(i)) * 0.1;
+                    const ty = posAttr.getY(i) + (target.y - posAttr.getY(i)) * 0.1;
+                    const tz = posAttr.getZ(i) + (target.z - posAttr.getZ(i)) * 0.1;
+                    posAttr.setXYZ(i, tx, ty, tz);
                 } else {
-                    posAttr.setXYZ(i, 
-                        initAttr.getX(i) + driftX,
-                        initAttr.getY(i) + driftY,
-                        initAttr.getZ(i) + driftZ
-                    );
+                    const tx = posAttr.getX(i) + (temp.x - posAttr.getX(i)) * 0.05;
+                    const ty = posAttr.getY(i) + (temp.y - posAttr.getY(i)) * 0.05;
+                    const tz = posAttr.getZ(i) + (temp.z - posAttr.getZ(i)) * 0.05;
+                    posAttr.setXYZ(i, tx, ty, tz);
                 }
             }
             posAttr.needsUpdate = true;
