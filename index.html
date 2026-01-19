@@ -117,7 +117,7 @@
     <div id="ui-layer">
         <div class="hud-panel top-left">
             <h1>积分创世纪</h1>
-            <div class="subtitle">System: Chrono-Sync // Ver 11.0 [Visuals Restored]</div>
+            <div class="subtitle">System: Chrono-Sync // Ver 12.0 [Legacy Restored]</div>
             <div class="subtitle" id="current-wx-date"></div>
             
             <div style="display: flex; gap: 10px; margin-bottom: 10px;">
@@ -305,7 +305,7 @@
         scene.add(coreMesh);
         scene.add(new THREE.Mesh(new THREE.SphereGeometry(2,32,32), new THREE.MeshBasicMaterial({color:0xffffaa})));
         
-        // --- 1. Interactive Stars (Higgs Field) ---
+        // --- 1. Interactive Stars (Fluid Field) ---
         const starsGeo = new THREE.BufferGeometry();
         const starsCount = 2000;
         const starsPos = new Float32Array(starsCount * 3); 
@@ -343,12 +343,12 @@
         const accGeo = new THREE.BufferGeometry();
         const accCount = 500;
         const accPos = new Float32Array(accCount*3);
-        const accVel = []; // Custom velocity/position data
+        const accVel = []; 
         for(let i=0; i<accCount; i++) {
             let angle = Math.random() * Math.PI * 2;
-            let r = 4 + Math.random() * 20; // Radius
+            let r = 4 + Math.random() * 20; 
             accPos[i*3] = Math.cos(angle)*r;
-            accPos[i*3+1] = (Math.random()-0.5)*1; // Flattened Y
+            accPos[i*3+1] = (Math.random()-0.5)*1; 
             accPos[i*3+2] = Math.sin(angle)*r;
             accVel.push({angle:angle, r:r, speed:0.02+Math.random()*0.03});
         }
@@ -356,6 +356,28 @@
         const accMat = new THREE.PointsMaterial({color:0xffaa00, size:0.3, transparent:true, opacity:0.6, blending:THREE.AdditiveBlending});
         const accretionSystem = new THREE.Points(accGeo, accMat);
         scene.add(accretionSystem);
+
+        // --- 4. Brownian Motion Green Particles (Restored & Enhanced) ---
+        const brownianGeo = new THREE.BufferGeometry();
+        const brownianCount = 150; // More particles
+        const bPos = new Float32Array(brownianCount * 3);
+        const bVel = []; 
+        for(let i=0; i<brownianCount; i++){
+            bPos[i*3] = (Math.random() - 0.5) * 25; // Slightly wider spread
+            bPos[i*3+1] = (Math.random() - 0.5) * 25;
+            bPos[i*3+2] = (Math.random() - 0.5) * 25;
+            bVel.push(new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1));
+        }
+        brownianGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3));
+        const brownianMat = new THREE.PointsMaterial({ 
+            color: 0x00ff44, // Bright Green
+            size: 0.7, // Bigger
+            transparent: true, 
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending 
+        });
+        const brownianParticles = new THREE.Points(brownianGeo, brownianMat);
+        scene.add(brownianParticles);
 
         // Orbit Rings
         const createRing = (r, c, o) => {
@@ -465,18 +487,14 @@
                 return; // Prioritize planets
             }
 
-            // 2. Check Background Stars (Particles)
-            // Points raycasting requires a threshold to catch small dots
+            // 2. Check Background Stars
             raycaster.params.Points.threshold = 2; 
             const starHits = raycaster.intersectObject(starField);
             
             if(starHits.length > 0) {
-                // Get the index of the particle clicked
                 const index = starHits[0].index;
                 const pID = particleIndices[index];
                 const info = standardModel[pID];
-
-                // Show Panel
                 const panel = document.getElementById('particle-panel');
                 panel.style.display = 'block';
                 document.getElementById('p-name').innerText = info.name;
@@ -501,14 +519,27 @@
             for(let i=0; i<accCount; i++) {
                 const v = accVel[i];
                 v.angle += v.speed;
-                v.r -= 0.05; // Spiral in
-                if(v.r < 3) v.r = 24; // Reset to rim
+                v.r -= 0.05; 
+                if(v.r < 3) v.r = 24; 
                 accArr[i*3] = Math.cos(v.angle)*v.r;
                 accArr[i*3+2] = Math.sin(v.angle)*v.r;
             }
             accretionSystem.geometry.attributes.position.needsUpdate = true;
 
-            // Higgs Field & Animation
+            // Animate Brownian (Green Particles)
+            const bPosAttr = brownianGeo.attributes.position;
+            for(let i=0; i<brownianCount; i++){
+                let x = bPosAttr.getX(i) + bVel[i].x;
+                let y = bPosAttr.getY(i) + bVel[i].y;
+                let z = bPosAttr.getZ(i) + bVel[i].z;
+                if(Math.abs(x) > 25) bVel[i].x *= -1;
+                if(Math.abs(y) > 25) bVel[i].y *= -1;
+                if(Math.abs(z) > 25) bVel[i].z *= -1;
+                bPosAttr.setXYZ(i, x, y, z);
+            }
+            bPosAttr.needsUpdate = true;
+
+            // Fluid Field & Animation
             raycaster.setFromCamera(mouse, camera);
             const posAttr = starsGeo.attributes.position;
             const initAttr = starsGeo.attributes.initialPosition;
@@ -518,18 +549,65 @@
             for(let i=0; i<starsCount; i++) {
                 temp.set(initAttr.getX(i), initAttr.getY(i), initAttr.getZ(i));
                 const distSq = ray.distanceSqToPoint(temp);
+                
+                const driftX = Math.sin(Date.now() * 0.0005 + i) * 2;
+                const driftY = Math.cos(Date.now() * 0.0003 + i) * 2;
+                const driftZ = Math.sin(Date.now() * 0.0004 + i) * 2;
+
                 if(distSq < 1500) {
-                    ray.closestPointToPoint(temp, target);
-                    posAttr.setXYZ(i, posAttr.getX(i)+(target.x-posAttr.getX(i))*0.05, posAttr.getY(i)+(target.y-posAttr.getY(i))*0.05, posAttr.getZ(i)+(target.z-posAttr.getZ(i))*0.05);
+                    const pushStrength = 1.0 - (distSq / 1500); 
+                    posAttr.setXYZ(i, 
+                        initAttr.getX(i) + driftX + (Math.random()-0.5)*10 * pushStrength,
+                        initAttr.getY(i) + driftY + (Math.random()-0.5)*10 * pushStrength,
+                        initAttr.getZ(i) + driftZ + (Math.random()-0.5)*10 * pushStrength
+                    );
                 } else {
-                    posAttr.setXYZ(i, posAttr.getX(i)+(temp.x-posAttr.getX(i))*0.02, posAttr.getY(i)+(temp.y-posAttr.getY(i))*0.02, posAttr.getZ(i)+(temp.z-posAttr.getZ(i))*0.02);
+                    posAttr.setXYZ(i, 
+                        initAttr.getX(i) + driftX,
+                        initAttr.getY(i) + driftY,
+                        initAttr.getZ(i) + driftZ
+                    );
                 }
             }
             posAttr.needsUpdate = true;
 
             coreMesh.rotation.y += 0.01; coreMesh.rotation.z += 0.005;
 
+            // CHECK HOVER FOR FREEZE LOGIC
+            raycaster.params.Points.threshold = 1; 
+            const planetHits = raycaster.intersectObjects(planetMeshes);
+            const tooltip = document.getElementById('tooltip');
+            let frozenPlanet = null;
+
+            if(planetHits.length > 0) {
+                const hit = planetHits[0].object;
+                const data = hit.userData;
+                frozenPlanet = hit; // SET FROZEN PLANET
+                
+                tooltip.style.display = 'block';
+                tooltip.style.left = (mouseX+20)+'px'; tooltip.style.top = (mouseY+20)+'px';
+                document.getElementById('tt-title').innerText = data.title;
+                document.getElementById('tt-date').innerText = data.isDead ? "状态: [已坍缩]" : `目标日期: ${data.targetDate} (剩余 ${data.daysAway} 天)`;
+                document.getElementById('tt-desc').innerText = data.desc;
+                document.getElementById('tt-subtasks').style.display = data.subtasks ? 'block' : 'none';
+                if(data.subtasks) document.getElementById('tt-subtasks').innerHTML = '<strong>分形任务:</strong><br>'+data.subtasks.map(s=>`• ${s}`).join('<br>');
+                document.body.style.cursor = 'pointer';
+            } else {
+                // Check star hover only if not hovering planet
+                raycaster.params.Points.threshold = 2;
+                const starHits = raycaster.intersectObject(starField);
+                if(starHits.length > 0) {
+                    document.body.style.cursor = 'help'; 
+                    tooltip.style.display = 'none';
+                } else {
+                    tooltip.style.display = 'none';
+                    document.body.style.cursor = 'default';
+                }
+            }
+
             planetMeshes.forEach(p => {
+                if(p === frozenPlanet) return; // FREEZE LOGIC APPLIED HERE
+
                 const d = p.userData;
                 d.angle += d.speed;
                 const x = Math.cos(d.angle)*d.radius, z = Math.sin(d.angle)*d.radius;
@@ -547,33 +625,6 @@
                     m.position.set(Math.cos(m.userData.angle)*m.userData.dist, 0, Math.sin(m.userData.angle)*m.userData.dist);
                 });
             });
-
-            // Raycast Tooltip (Planets)
-            raycaster.params.Points.threshold = 1; // Reset threshold for normal raycasting if needed
-            const hits = raycaster.intersectObjects(planetMeshes);
-            const tooltip = document.getElementById('tooltip');
-            if(hits.length>0) {
-                const d = hits[0].object.userData;
-                tooltip.style.display = 'block';
-                tooltip.style.left = (mouseX+20)+'px'; tooltip.style.top = (mouseY+20)+'px';
-                document.getElementById('tt-title').innerText = d.title;
-                document.getElementById('tt-date').innerText = d.isDead ? "状态: [已坍缩]" : `目标日期: ${d.targetDate} (剩余 ${d.daysAway} 天)`;
-                document.getElementById('tt-desc').innerText = d.desc;
-                document.getElementById('tt-subtasks').style.display = d.subtasks ? 'block' : 'none';
-                if(d.subtasks) document.getElementById('tt-subtasks').innerHTML = '<strong>分形任务:</strong><br>'+d.subtasks.map(s=>`• ${s}`).join('<br>');
-                document.body.style.cursor = 'pointer';
-            } else {
-                // Check if hovering over star for cursor change
-                raycaster.params.Points.threshold = 2;
-                const starHits = raycaster.intersectObject(starField);
-                if(starHits.length > 0) {
-                    document.body.style.cursor = 'help'; // Different cursor for stars
-                    tooltip.style.display = 'none';
-                } else {
-                    tooltip.style.display = 'none';
-                    document.body.style.cursor = 'default';
-                }
-            }
 
             updateLabels();
             renderer.render(scene, camera);
